@@ -1,0 +1,287 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Discord Webhook Manager</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background: #36393f;
+            color: white;
+            display: flex;
+            min-height: 100vh;
+        }
+        .main-container {
+            flex: 1;
+            max-width: 600px;
+            margin: 0 auto;
+        }
+        .container {
+            background: #2f3136;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+        }
+        input, textarea {
+            width: 100%;
+            padding: 10px;
+            margin: 10px 0;
+            border: 1px solid #202225;
+            border-radius: 4px;
+            background: #40444b;
+            color: white;
+        }
+        button {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+            font-weight: bold;
+            transition: background-color 0.2s;
+        }
+        button:hover {
+            opacity: 0.9;
+        }
+        #validateBtn {
+            background: #7289da;
+            color: white;
+        }
+        #ejectBtn {
+            background: #ed4245;
+            color: white;
+            display: none;
+        }
+        #sendBtn {
+            background: #7289da;
+            color: white;
+            width: 100%;
+            margin: 10px 0;
+            display: none;
+        }
+        #previewBtn {
+            background: #4f545c;
+            color: white;
+            width: 100%;
+            margin: 10px 0;
+            display: none;
+        }
+        .status {
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 4px;
+            display: none;
+        }
+        .success {
+            background: #43b581;
+            color: white;
+        }
+        .error {
+            background: #ed4245;
+            color: white;
+        }
+        .preview-panel {
+            position: fixed;
+            right: -400px;
+            top: 0;
+            width: 400px;
+            height: 100vh;
+            background: #2f3136;
+            box-shadow: -2px 0 10px rgba(0,0,0,0.2);
+            transition: right 0.3s ease;
+            padding: 20px;
+            box-sizing: border-box;
+            overflow-y: auto;
+        }
+        .preview-panel.active {
+            right: 0;
+        }
+        .webhook-info {
+            display: flex;
+            align-items: center;
+            margin-bottom: 20px;
+            padding-bottom: 20px;
+            border-bottom: 1px solid #40444b;
+        }
+        .webhook-avatar {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            margin-right: 10px;
+        }
+        .webhook-name {
+            font-weight: bold;
+            color: #ffffff;
+        }
+        .preview-message {
+            background: #40444b;
+            padding: 15px;
+            border-radius: 4px;
+            margin-top: 10px;
+            word-break: break-word;
+        }
+        .close-preview {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: none;
+            border: none;
+            color: #ffffff;
+            cursor: pointer;
+            font-size: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="main-container">
+        <div class="container">
+            <h2>Discord Webhook Manager</h2>
+            <div>
+                <label for="webhookUrl">Enter Webhook:</label>
+                <input type="text" id="webhookUrl" placeholder="https://discord.com/api/webhooks/...">
+            </div>
+            
+            <div id="validationStatus" class="status"></div>
+            <div id="injectionStatus" class="status"></div>
+            
+            <button id="validateBtn">Validate</button>
+            <button id="ejectBtn">Eject</button>
+            
+            <div id="messageSection" style="display: none;">
+                <textarea id="messageInput" placeholder="Enter your message" rows="4"></textarea>
+                <button id="sendBtn">Send Message</button>
+                <button id="previewBtn">Preview Message</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="preview-panel" id="previewPanel">
+        <button class="close-preview" id="closePreview">×</button>
+        <div class="webhook-info">
+            <img id="webhookAvatar" class="webhook-avatar" src="/api/placeholder/40/40" alt="Webhook Avatar">
+            <div class="webhook-name" id="webhookName">Loading...</div>
+        </div>
+        <div class="preview-message" id="previewMessage"></div>
+    </div>
+
+    <script>
+        let webhook = '';
+        let webhookData = null;
+        const webhookInput = document.getElementById('webhookUrl');
+        const validateBtn = document.getElementById('validateBtn');
+        const ejectBtn = document.getElementById('ejectBtn');
+        const validationStatus = document.getElementById('validationStatus');
+        const injectionStatus = document.getElementById('injectionStatus');
+        const messageSection = document.getElementById('messageSection');
+        const messageInput = document.getElementById('messageInput');
+        const sendBtn = document.getElementById('sendBtn');
+        const previewBtn = document.getElementById('previewBtn');
+        const previewPanel = document.getElementById('previewPanel');
+        const closePreview = document.getElementById('closePreview');
+        const webhookAvatar = document.getElementById('webhookAvatar');
+        const webhookName = document.getElementById('webhookName');
+        const previewMessage = document.getElementById('previewMessage');
+
+        validateBtn.addEventListener('click', async () => {
+            webhook = webhookInput.value.trim();
+            if (!webhook.startsWith('https://discord.com/api/webhooks/')) {
+                showError('Invalid webhook URL format');
+                return;
+            }
+
+            try {
+                const response = await fetch(webhook);
+                if (response.ok) {
+                    webhookData = await response.json();
+                    validationStatus.textContent = 'Validation Complete';
+                    validationStatus.className = 'status success';
+                    validationStatus.style.display = 'block';
+                    
+                    // Show injection message
+                    setTimeout(() => {
+                        injectionStatus.textContent = 'Injection';
+                        injectionStatus.className = 'status success';
+                        injectionStatus.style.display = 'block';
+                    }, 500);
+
+                    // Show completion message
+                    setTimeout(() => {
+                        injectionStatus.textContent = 'Injection Completed';
+                        validateBtn.style.display = 'none';
+                        ejectBtn.style.display = 'inline-block';
+                        messageSection.style.display = 'block';
+                        sendBtn.style.display = 'block';
+                        previewBtn.style.display = 'block';
+                        
+                        // Update webhook info
+                        if (webhookData.avatar) {
+                            webhookAvatar.src = `https://cdn.discordapp.com/avatars/${webhookData.id}/${webhookData.avatar}`;
+                        }
+                        webhookName.textContent = webhookData.name;
+                    }, 1500);
+                } else {
+                    showError('Validation Failed: Please check the webhook');
+                }
+            } catch (error) {
+                showError('Validation Failed: Please check the webhook');
+            }
+        });
+
+        ejectBtn.addEventListener('click', () => {
+            webhook = '';
+            webhookData = null;
+            webhookInput.value = '';
+            validationStatus.style.display = 'none';
+            injectionStatus.style.display = 'none';
+            validateBtn.style.display = 'inline-block';
+            ejectBtn.style.display = 'none';
+            messageSection.style.display = 'none';
+            previewPanel.classList.remove('active');
+        });
+
+        sendBtn.addEventListener('click', async () => {
+            const message = messageInput.value.trim();
+            if (!message) return;
+
+            try {
+                const response = await fetch(webhook, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        content: message
+                    }),
+                });
+
+                if (response.ok) {
+                    messageInput.value = '';
+                    previewPanel.classList.remove('active');
+                } else {
+                    showError('Failed to send message');
+                }
+            } catch (error) {
+                showError('Failed to send message');
+            }
+        });
+
+        previewBtn.addEventListener('click', () => {
+            const message = messageInput.value.trim();
+            previewMessage.textContent = message || 'No message content';
+            previewPanel.classList.add('active');
+        });
+
+        closePreview.addEventListener('click', () => {
+            previewPanel.classList.remove('active');
+        });
+
+        function showError(message) {
+            validationStatus.textContent = message;
+            validationStatus.className = 'status error';
+            validationStatus.style.display = 'block';
+        }
+    </script>
+</body>
+</html>
